@@ -1,6 +1,6 @@
 // HomePage.js
 import React from "react";
-import illustration from "./4380.jpg"; // Ensure this path is correct for your project structure
+import illustration from "../../public/4380.jpg"; // Ensure this path is correct for your project structure
 //import './HomePage.css'; // You can create a separate CSS file for styles if desired
 
 const HomePage = () => {

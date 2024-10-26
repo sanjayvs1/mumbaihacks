@@ -1,14 +1,17 @@
 // HomePage.js
 import React from "react";
-import illustration from "../../public/4380.jpg"; // Ensure this path is correct for your project structure
+import illustration from "./4380.jpg"; // Ensure this path is correct for your project structure
+import { useNavigate } from "react-router-dom";
 //import './HomePage.css'; // You can create a separate CSS file for styles if desired
 
 const HomePage = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-blue-50 flex flex-col items-center font-sans text-gray-800">
       {/* Navbar */}
       <header className="w-full py-4 px-8 flex justify-between items-center bg-white shadow-md">
-        <h1 className="text-2xl font-bold text-blue-700">MeetingMate</h1>
+        <h1 className="text-2xl font-bold text-blue-700">MeetHub</h1>
         <nav className="space-x-6 text-gray-600">
           <a href="#features" className="hover:text-blue-700">Features</a>
           <a href="#about" className="hover:text-blue-700">About</a>
@@ -26,7 +29,7 @@ const HomePage = () => {
           <p className="text-xl text-gray-600 mb-6">
             Boost your remote productivity with automated meeting summaries, insights, and clips of essential moments.
           </p>
-          <button className="bg-blue-700 text-white py-3 px-8 rounded-full text-lg shadow-lg hover:bg-blue-800 transition duration-200 transform hover:scale-105">
+          <button onClick={()=>{navigate("/login")}} className="bg-blue-700 text-white py-3 px-8 rounded-full text-lg shadow-lg hover:bg-blue-800 transition duration-200 transform hover:scale-105">
             Start Meeting
           </button>
         </div>

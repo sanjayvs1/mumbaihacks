@@ -110,7 +110,6 @@ const Web3Login = () => {
   const formatAddress = (addr: string): string =>
     addr.length > 10 ? `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}` : addr;
 
-  // Effect to check if the user is already connected on mount
   useEffect(() => {
     const checkIfWalletIsConnected = async () => {
       if (!window.ethereum) return;
@@ -127,7 +126,6 @@ const Web3Login = () => {
 
     checkIfWalletIsConnected();
     
-    // Cleanup listeners on component unmount
     return () => {
       if (window.ethereum) {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
@@ -138,55 +136,49 @@ const Web3Login = () => {
   }, []);
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <h2 className="text-center text-2xl font-bold mb-4">Welcome to MeetHub!</h2>
-      
-      <div className="flex justify-center space-x-4 mb-4">
-        {!address ? (
-          <button
-            className={`btn btn-primary btn-sm ${isConnecting ? 'loading' : ''}`}
-            onClick={connectWallet}
-            disabled={isConnecting}
-          >
-            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-          </button>
-        ) : (
-          <>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 font-sans text-gray-800">
+      <div className="w-full max-w-lg p-8 bg-white rounded-lg shadow-md text-center">
+        <h2 className="text-3xl font-bold text-blue-800 mb-6">Welcome to MeetHub!</h2>
+        
+        <div className="flex justify-center items-center mb-6 space-x-4">
+          {!address ? (
             <button
-              className="btn btn-danger btn-sm"
+              className={`px-6 py-3 text-white font-semibold bg-blue-700 rounded-full shadow-md hover:bg-blue-800 transition duration-200 ${isConnecting ? 'loading' : ''}`}
+              onClick={connectWallet}
+              disabled={isConnecting}
+            >
+              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+            </button>
+          ) : (
+            <button
+              className="px-6 py-3 font-semibold bg-red-600 text-white rounded-full shadow-md hover:bg-red-700 transition duration-200"
               onClick={handleDisconnect}
             >
               Disconnect Wallet
             </button>
-            <button
-              className={`btn btn-primary btn-sm`}
-              onClick={connectWallet}
-            >
-              Connect Again
-            </button>
-          </>
+          )}
+        </div>
+
+        {address && (
+          <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
+            <p className="text-lg">
+              Connected Address: <span className="font-mono">{formatAddress(address)}</span>
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 mt-4 bg-red-100 text-red-600 rounded-md">
+            <p>{error}</p>
+          </div>
+        )}
+
+        {toastMessage && (
+          <div className="p-4 mt-4 bg-green-100 text-green-600 rounded-md">
+            <p>{toastMessage}</p>
+          </div>
         )}
       </div>
-
-      {address && (
-        <div className="p-4 border border-gray-300 rounded-lg">
-          <p className="text-lg">
-            Connected Address: <span className="font-mono">{formatAddress(address)}</span>
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="alert alert-error mt-4">
-          <p>{error}</p>
-        </div>
-      )}
-
-      {toastMessage && (
-        <div className="toast toast-success mt-4">
-          <div>{toastMessage}</div>
-        </div>
-      )}
     </div>
   );
 };

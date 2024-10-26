@@ -13,6 +13,7 @@
     "@types/socket.io-client": "^3.0.0",
     "axios": "^1.7.7",
     "lucide-react": "^0.453.0",
+    "daisyui": "^4.12.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router": "^6.27.0",

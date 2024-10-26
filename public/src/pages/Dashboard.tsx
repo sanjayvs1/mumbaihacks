@@ -44,6 +44,9 @@ const App: React.FC = () => {
   const chunksRef = useRef<Blob[]>([]);
   // const recordingSessionIdRef = useRef<string>("");
 
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const remoteChunksRef = useRef<Blob[]>([]);
+
   // Check for media devices support
   const checkMediaDevicesSupport = useCallback(() => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -129,9 +132,71 @@ const App: React.FC = () => {
         console.log("Received remote track");
         if (remoteVideoRef.current && event.streams[0]) {
           remoteVideoRef.current.srcObject = event.streams[0];
+          // startRecordingRemote(event.streams[0]); // Start recording the incoming remote stream
         }
       };
 
+      const startRecordingRemote = (remoteStream: MediaStream) => {
+        const options = { mimeType: "video/webm;codecs=vp8,opus" };
+        const mediaRecorder = new MediaRecorder(remoteStream, options);
+        remoteChunksRef.current = []; // Reset chunks
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            remoteChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.start();
+
+        // Stop recording after a certain time or on a specific event
+        setTimeout(() => {
+          mediaRecorder.stop();
+          mediaRecorder.onstop = async () => {
+            await uploadRemoteRecording(); // Upload remote recording after stopping
+          };
+        }, 30000); // Record for 30 seconds, adjust as needed
+      };
+
+      // Function to upload the recorded remote stream
+      const uploadRemoteRecording = async () => {
+        try {
+          const recordedBlob = new Blob(remoteChunksRef.current, {
+            type: "video/webm",
+          });
+
+          const formData = new FormData();
+          formData.append("sessionId", generateSessionId()); // Include session ID
+          formData.append(
+            "video",
+            recordedBlob,
+            `remote_recording_${Date.now()}.webm`
+          );
+
+          const req = await axios.post(
+            `${host}/api/recordings/upload`,
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+              onUploadProgress: (progressEvent) => {
+                const percentCompleted = Math.round(
+                  (progressEvent.loaded * 100) / (progressEvent.total ?? 1)
+                );
+                console.log(`Upload progress: ${percentCompleted}%`);
+              },
+            }
+          );
+
+          // Clear chunks after successful upload
+          remoteChunksRef.current = [];
+        } catch (err) {
+          setError(
+            `Failed to upload remote recording: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      };
       pc.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
           console.log("Sending ICE candidate");
@@ -417,7 +482,7 @@ const App: React.FC = () => {
           ); // Upload the whole video
 
           // Upload to backend
-          await axios.post(`${host}/api/recordings/upload`, formData, {
+          const {data}=await axios.post(`${host}/api/recordings/upload`, formData, {
             headers: { "Content-Type": "multipart/form-data" },
             onUploadProgress: (progressEvent) => {
               const percentCompleted = Math.round(
@@ -426,6 +491,7 @@ const App: React.FC = () => {
               console.log(`Upload progress: ${percentCompleted}%`);
             },
           });
+          console.log(data)
 
           // Clear chunks after successful upload
           chunksRef.current = [];

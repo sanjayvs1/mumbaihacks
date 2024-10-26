@@ -103,6 +103,7 @@ app.post("/api/recordings/upload", upload.single("video"), async (req, res) => {
       },
       { new: true, upsert: true } // Create if it doesn't exist
     );
+    console.log(session);
 
     res.status(200).json({ message: "Video uploaded successfully", session });
   } catch (error) {

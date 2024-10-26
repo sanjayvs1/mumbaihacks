@@ -14,13 +14,13 @@ const configuration = {
   ],
 };
 
-interface Navigator {
-  getUserMedia?: (
-    constraints: MediaStreamConstraints,
-    success: (stream: MediaStream) => void,
-    error: (err: Error) => void
-  ) => void;
-}
+// interface Navigator {
+//   getUserMedia?: (
+//     constraints: MediaStreamConstraints,
+//     success: (stream: MediaStream) => void,
+//     error: (err: Error) => void
+//   ) => void;
+// }
 
 const App: React.FC = () => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -38,6 +38,11 @@ const App: React.FC = () => {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // const [isStoringData, setIsStoringData] = useState(false);
+  const chunksRef = useRef<Blob[]>([]);
+  // const recordingSessionIdRef = useRef<string>("");
 
   // Check for media devices support
   const checkMediaDevicesSupport = useCallback(() => {
@@ -86,6 +91,10 @@ const App: React.FC = () => {
       );
     }
   }, []);
+
+  const generateSessionId = () => {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  };
 
   const createPeerConnection = useCallback(() => {
     try {
@@ -354,69 +363,170 @@ const App: React.FC = () => {
       setIsVideoEnabled(videoTrackRef.current.enabled);
     }
   };
-
   const startRecording = () => {
-    if (localStream) {
-      const recorder = new MediaRecorder(localStream);
-      mediaRecorderRef.current = recorder;
+    if (!localStream) {
+      setError("No media stream available");
+      return;
+    }
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socketRef.current) {
-          // Attach a timestamp to each chunk of data
-          const timestampedData = {
-            timestamp: new Date().toISOString(), // Store timestamp as ISO string
-            chunk: event.data, // Actual recorded data
-          };
-          socketRef.current.emit("audio-visual-data", timestampedData);
+    try {
+      const options = { mimeType: "video/webm;codecs=vp8,opus" };
+      mediaRecorderRef.current = new MediaRecorder(localStream, options);
+      chunksRef.current = []; // Reset chunks
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
         }
       };
 
-      recorder.onstart = () => setIsRecording(true);
-      recorder.onstop = () => setIsRecording(false);
-      recorder.start(1000); // Collects data every 1 second
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      setError(
+        `Failed to start recording: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
-  const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    if (!mediaRecorderRef.current) {
+      setError("No recording in progress");
+      return;
     }
+
+    return new Promise<void>((resolve) => {
+      mediaRecorderRef.current!.onstop = async () => {
+        try {
+          setIsUploading(true);
+
+          // Combine all chunks into a single blob
+          const recordedBlob = new Blob(chunksRef.current, {
+            type: "video/webm",
+          });
+
+          // Create FormData for file upload
+          const formData = new FormData();
+          formData.append("sessionId", generateSessionId()); // Include session ID
+          formData.append(
+            "video",
+            recordedBlob,
+            `recording_${Date.now()}.webm`
+          ); // Upload the whole video
+
+          // Upload to backend
+          await axios.post(`${host}/api/recordings/upload`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (progressEvent) => {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / (progressEvent.total ?? 1)
+              );
+              console.log(`Upload progress: ${percentCompleted}%`);
+            },
+          });
+
+          // Clear chunks after successful upload
+          chunksRef.current = [];
+          resolve();
+        } catch (err) {
+          setError(
+            `Failed to upload recording: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        } finally {
+          setIsUploading(false);
+          setIsRecording(false);
+        }
+      };
+
+      mediaRecorderRef.current!.stop();
+    });
   };
 
   return (
-    <div className="flex flex-col items-center">
-      {error && <p className="text-red-500">{error}</p>}
-      <div className="flex">
-        <video
-          ref={localVideoRef}
-          autoPlay
-          muted
-          className="w-full md:w-2/3 lg:w-1/2 mb-2 border border-gray-300"
-        />
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          className="w-full md:w-2/3 lg:w-1/2 mb-2 border border-gray-300"
-        />
-      </div>
-      <div className="flex justify-center">
-        <button
-          onClick={isConnected ? endCall : startCall}
-          className="p-2 bg-red-500 text-white rounded hover:bg-red-700"
-        >
-          {isConnected ? <PhoneOff /> : "Start Call"}
-        </button>
-      </div>
-      <div className="flex justify-center mt-2">
-        <button onClick={toggleAudio} className="p-2">
-          {isAudioEnabled ? <Mic /> : <MicOff />}
-        </button>
-        <button onClick={toggleVideo} className="p-2">
-          {isVideoEnabled ? <Camera /> : <CameraOff />}
-        </button>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg p-6">
+        {error && (
+          <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="relative">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full rounded-lg bg-gray-800"
+            />
+            <span className="absolute bottom-2 left-2 text-white">You</span>
+          </div>
+          <div className="relative">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="w-full rounded-lg bg-gray-800"
+            />
+            <span className="absolute bottom-2 left-2 text-white">Remote</span>
+          </div>
+        </div>
+
+        <div className="flex justify-center space-x-4">
+          {!isConnected ? (
+            <button
+              onClick={startCall}
+              disabled={isConnecting}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+            >
+              {isConnecting ? "Connecting..." : "Start Call"}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={toggleAudio}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                {isAudioEnabled ? <Mic /> : <MicOff />}
+              </button>
+              <button
+                onClick={toggleVideo}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                {isVideoEnabled ? <Camera /> : <CameraOff />}
+              </button>
+              <button
+                onClick={endCall}
+                className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white"
+              >
+                <PhoneOff />
+              </button>
+
+              {!isRecording ? (
+                <button
+                  onClick={startRecording}
+                  disabled={!localStream || isUploading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                >
+                  Start Recording
+                </button>
+              ) : (
+                <button
+                  onClick={stopRecording}
+                  disabled={isUploading}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50"
+                >
+                  {isUploading ? "Uploading..." : "Stop Recording"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

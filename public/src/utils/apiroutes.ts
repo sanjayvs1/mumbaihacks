@@ -1,2 +1,1 @@
-export const host =
-  "https://accounting-rise-tracks-definitely.trycloudflare.com";
+export const host = "https://separated-draw-gods-conflict.trycloudflare.com";

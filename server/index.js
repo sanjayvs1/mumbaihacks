@@ -7,6 +7,11 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { AssemblyAI } from "assemblyai";
+
+const client = new AssemblyAI({
+  apiKey: "8d1b9a35017445d38d6d6c409f5827c2",
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
